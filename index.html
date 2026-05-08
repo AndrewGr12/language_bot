@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Language Builder</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+
+<body>
+  <div class="container">
+
+    <h1>Language Builder</h1>
+
+    <!-- LANGUAGE SELECT -->
+    <div class="row">
+      <select id="targetLang">
+        <option value="fr">French</option>
+        <option value="es">Spanish</option>
+      </select>
+    </div>
+
+    <!-- VOICE INPUT -->
+    <div class="row">
+      <button id="startBtn">🎤 Start Speaking</button>
+      <button id="stopBtn">⏹ Stop</button>
+    </div>
+
+    <p id="status">Press mic and speak...</p>
+
+    <!-- MANUAL INPUT -->
+    <textarea id="manualInput" placeholder="Or type a sentence..."></textarea>
+    <button id="addManual">Add Sentence</button>
+
+    <hr/>
+
+    <!-- SENTENCE LIST -->
+    <h2>Your Sentences</h2>
+    <div id="list"></div>
+
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
