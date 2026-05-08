@@ -25,10 +25,12 @@ const retranslateBtn= document.getElementById('retranslateBtn');
 
 const logSection    = document.getElementById('logSection');
 const logList       = document.getElementById('logList');
+const exportBtn     = document.getElementById('exportBtn');
 
-// ─── State ───────────────────────────────────────────────────────────────────
+// ─── State — session only, wiped on every page reload ────────────────────────
+// (No localStorage — intentional. Refresh = clean slate.)
 let currentLang = targetLangSel.value;
-let sessionLog  = [];
+let sessionLog  = [];   // [{ en, tr, lang }]  lives only in RAM
 
 // Keep lang label in sync
 targetLangSel.addEventListener('change', () => {
@@ -41,10 +43,8 @@ function setStatus(msg, type = '') {
   statusEl.className = 'status' + (type ? ' ' + type : '');
 }
 
-// ─── Translation via MyMemory (free, no key, 1000 req/day) ───────────────────
-// Falls back to Lingva Translate (self-hosted Google Translate proxy) if MyMemory fails.
+// ─── Translation via MyMemory (free, no key) ─────────────────────────────────
 async function translate(text, targetLang) {
-  // MyMemory: best free tier, no CORS issues, returns quality translations
   try {
     const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`;
     const res  = await fetch(url);
@@ -58,7 +58,6 @@ async function translate(text, targetLang) {
     console.warn('[Translate] MyMemory failed, trying Lingva:', err);
   }
 
-  // Fallback: Lingva Translate (open-source Google Translate frontend)
   try {
     const res  = await fetch(`https://lingva.ml/api/v1/en/${targetLang}/${encodeURIComponent(text)}`);
     if (!res.ok) throw new Error('Lingva HTTP ' + res.status);
@@ -79,7 +78,7 @@ async function processSentence(text) {
   currentLang = targetLangSel.value;
   const langName = LANG_NAMES[currentLang] || currentLang.toUpperCase();
 
-  // Show the confirm card with just the English text first
+  // Show the confirm card immediately with English text
   enTextEl.value = text;
   trTextEl.value = '';
   trTag.textContent = currentLang.toUpperCase();
@@ -94,7 +93,7 @@ async function processSentence(text) {
   try {
     const translated = await translate(text, currentLang);
     trTextEl.value = translated;
-    setStatus('Done. Edit if needed, then add to Anki.', 'success');
+    setStatus('Done. Edit if needed, then save.', 'success');
   } catch (err) {
     setStatus(err.message, 'error');
     trTextEl.value = '';
@@ -105,7 +104,7 @@ async function processSentence(text) {
   }
 }
 
-// ─── Re-translate button (re-runs translation from current English text) ─────
+// ─── Re-translate ─────────────────────────────────────────────────────────────
 retranslateBtn.addEventListener('click', async () => {
   const text = enTextEl.value.trim();
   if (!text) return;
@@ -135,13 +134,30 @@ let isListening  = false;
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
   recognition.lang = 'en-US';
-  recognition.interimResults = false;
+  recognition.interimResults = true;   // show words as you speak
   recognition.maxAlternatives = 1;
 
+  // Show interim results live in the textarea
   recognition.onresult = (e) => {
-    const transcript = e.results[0][0].transcript;
-    manualInput.value = transcript;
-    processSentence(transcript);
+    let interim = '';
+    let final   = '';
+
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) {
+        final += t;
+      } else {
+        interim += t;
+      }
+    }
+
+    // Show what's being heard in real time
+    manualInput.value = final || interim;
+
+    // Once we have a final result, run the pipeline
+    if (final) {
+      processSentence(final);
+    }
   };
 
   recognition.onerror = (e) => {
@@ -168,11 +184,12 @@ if (SpeechRecognition) {
 function startListening() {
   if (!recognition) return;
   try {
+    manualInput.value = '';   // clear previous text when starting a new recording
     recognition.start();
     isListening = true;
     micBtn.classList.add('listening');
     micLabel.textContent = 'Tap to stop';
-    setStatus('Listening…');
+    setStatus('Listening… speak now');
   } catch (e) {
     setStatus('Could not start mic.', 'error');
   }
@@ -182,7 +199,7 @@ function stopListening() {
   isListening = false;
   micBtn.classList.remove('listening');
   micLabel.textContent = 'Hold to speak';
-  if (!statusEl.classList.contains('error')) {
+  if (!statusEl.classList.contains('error') && !statusEl.classList.contains('success')) {
     setStatus('Ready.');
   }
 }
@@ -205,41 +222,8 @@ discardBtn.addEventListener('click', () => {
   setStatus('Discarded.');
 });
 
-// ─── AnkiConnect ─────────────────────────────────────────────────────────────
-async function sendToAnki(enPhrase, trPhrase, lang) {
-  const payload = {
-    action: 'addNote',
-    version: 6,
-    params: {
-      note: {
-        deckName:  'Language Builder',
-        modelName: 'Basic',
-        fields: {
-          Front: enPhrase,
-          Back:  trPhrase
-        },
-        options: {
-          allowDuplicate: false,
-          duplicateScope: 'deck'
-        },
-        tags: ['language-builder', lang]
-      }
-    }
-  };
-
-  const res = await fetch('http://localhost:8765', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.result;
-}
-
-// ─── Save to Anki ─────────────────────────────────────────────────────────────
-saveBtn.addEventListener('click', async () => {
+// ─── Save to session log ──────────────────────────────────────────────────────
+saveBtn.addEventListener('click', () => {
   const en   = enTextEl.value.trim();
   const tr   = trTextEl.value.trim();
   const lang = currentLang;
@@ -249,29 +233,13 @@ saveBtn.addEventListener('click', async () => {
     return;
   }
 
-  saveBtn.disabled = true;
-  setStatus('Sending to Anki…');
+  // Add to session log (RAM only — wiped on reload)
+  addToLog(en, tr, lang);
+  setStatus('Saved to this session ✔', 'success');
 
-  try {
-    await sendToAnki(en, tr, lang);
-    setStatus('Saved to Anki ✔', 'success');
-
-    // Add to session log
-    addToLog(en, tr, lang);
-
-    // Reset UI
-    confirmCard.classList.remove('visible');
-    manualInput.value = '';
-
-  } catch (err) {
-    // Common error: AnkiConnect not running
-    const msg = err.message.includes('Failed to fetch')
-      ? 'Cannot reach Anki. Is it open with AnkiConnect installed?'
-      : 'Anki error: ' + err.message;
-    setStatus(msg, 'error');
-  } finally {
-    saveBtn.disabled = false;
-  }
+  // Reset UI
+  confirmCard.classList.remove('visible');
+  manualInput.value = '';
 });
 
 // ─── Session log ─────────────────────────────────────────────────────────────
@@ -287,8 +255,37 @@ function addToLog(en, tr, lang) {
   `;
   logList.prepend(li);
   logSection.classList.add('visible');
+
+  // Show export button as soon as there's something to export
+  exportBtn.style.display = 'inline-flex';
 }
 
 function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ─── Export session as .txt (download to device / AirDrop / share) ────────────
+// Format: simple two-column text, easy to paste into Apple Notes, Notion, etc.
+exportBtn.addEventListener('click', () => {
+  if (sessionLog.length === 0) return;
+
+  const langName = LANG_NAMES[sessionLog[0].lang] || sessionLog[0].lang.toUpperCase();
+  const date     = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  const lines    = [`Language Builder — ${date}`, ''];
+
+  sessionLog.slice().reverse().forEach(({ en, tr, lang }, i) => {
+    lines.push(`${i + 1}. EN: ${en}`);
+    lines.push(`   ${lang.toUpperCase()}: ${tr}`);
+    lines.push('');
+  });
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `language-builder-${Date.now()}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  setStatus('Exported! Open the file on your device.', 'success');
+});

@@ -10,7 +10,7 @@
   --text:      #e8e6e0;
   --text-muted:#7a7870;
   --text-dim:  #4a4845;
-  --accent:    #c8f060;       /* lime-green — the one pop of color */
+  --accent:    #c8f060;
   --accent-dim:rgba(200,240,96,0.12);
   --red:       #ff5c5c;
   --red-dim:   rgba(255,92,92,0.12);
@@ -30,7 +30,6 @@ body {
   line-height: 1.6;
 }
 
-/* Grain overlay */
 .noise {
   position: fixed; inset: 0; pointer-events: none; z-index: 0;
   opacity: 0.03;
@@ -153,7 +152,6 @@ select:focus { outline: none; border-color: var(--accent); }
 .mic-icon { font-size: 0; }
 .mic-label { font-size: 13px; font-family: var(--mono); letter-spacing: 0.03em; color: inherit; }
 
-/* Pulse rings — only visible while listening */
 .mic-rings { position: absolute; inset: 0; pointer-events: none; }
 .ring {
   position: absolute;
@@ -259,7 +257,6 @@ textarea::placeholder { color: var(--text-dim); }
 
 /* ─── Lang pair ─── */
 .lang-pair { display: flex; flex-direction: column; gap: 10px; }
-
 .lang-block { display: flex; flex-direction: column; gap: 6px; }
 
 .lang-label {
@@ -280,10 +277,7 @@ textarea::placeholder { color: var(--text-dim); }
   font-style: italic;
 }
 
-.lang-text {
-  height: 56px;
-  font-size: 15px;
-}
+.lang-text { height: 56px; font-size: 15px; }
 
 .lang-text-wrap { position: relative; }
 
@@ -306,9 +300,7 @@ textarea::placeholder { color: var(--text-dim); }
   display: flex; align-items: center; gap: 0;
   padding: 2px 0;
 }
-.arrow-line {
-  flex: 1; height: 0.5px; background: var(--border2);
-}
+.arrow-line { flex: 1; height: 0.5px; background: var(--border2); }
 .arrow-head { color: var(--text-muted); flex-shrink: 0; margin-left: -2px; }
 
 .retranslate-btn {
@@ -328,13 +320,8 @@ textarea::placeholder { color: var(--text-dim); }
   padding-top: 1rem;
 }
 
-.anki-hint {
+.save-hint {
   font-size: 12px; color: var(--text-muted); font-family: var(--mono);
-}
-.anki-hint code {
-  color: var(--text); background: var(--surface2);
-  padding: 2px 6px; border-radius: 4px;
-  border: 0.5px solid var(--border2);
 }
 
 .save-btn {
@@ -356,11 +343,30 @@ textarea::placeholder { color: var(--text-dim); }
 .log-section { display: none; flex-direction: column; gap: 10px; }
 .log-section.visible { display: flex; }
 
+.log-header {
+  display: flex; align-items: center; justify-content: space-between;
+}
+
 .log-title {
   font-size: 11px; font-family: var(--mono);
   text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-dim);
 }
+
+/* ─── Export button ─── */
+.export-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: transparent;
+  border: 0.5px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.export-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 .log-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
 

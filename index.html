@@ -128,19 +128,31 @@
       </div>
 
       <div class="confirm-footer">
-        <div class="anki-hint">Saves to deck: <code>Language Builder</code></div>
+        <p class="save-hint">Saves to this session only</p>
+        <!-- Replaced Anki button with simple session save -->
         <button id="saveBtn" class="save-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <polyline points="20 6 9 17 4 12"/>
           </svg>
-          Add to Anki
+          Save phrase
         </button>
       </div>
     </section>
 
     <!-- RECENT CARDS LOG -->
     <section class="log-section" id="logSection">
-      <h2 class="log-title">This session</h2>
+      <div class="log-header">
+        <h2 class="log-title">This session</h2>
+        <!-- Export button — downloads a .txt you can open/share on any device -->
+        <button id="exportBtn" class="export-btn" style="display:none" title="Download all phrases as a .txt file">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Export .txt
+        </button>
+      </div>
       <ul class="log-list" id="logList"></ul>
     </section>
 
