@@ -41,7 +41,7 @@ const apiNote       = document.getElementById('apiNote');
 
 // ─── State — session only, wiped on every page reload ────────────────────────
 let currentLang = targetLangSel.value;
-let sessionLog  = [];
+let sessionLog = JSON.parse(localStorage.getItem('languageBuilderLog') || '[]');
 let deeplKey    = '';   // never saved to localStorage — clears on tab close
 
 targetLangSel.addEventListener('change', () => {
@@ -275,6 +275,7 @@ saveBtn.addEventListener('click', () => {
   setStatus('Saved to this session ✔', 'success');
   confirmCard.classList.remove('visible');
   manualInput.value = '';
+  localStorage.setItem('languageBuilderLog', JSON.stringify(sessionLog));
 });
 
 // ─── Session log ─────────────────────────────────────────────────────────────
@@ -290,33 +291,49 @@ function addToLog(en, tr, lang) {
   `;
   logList.prepend(li);
   logSection.classList.add('visible');
-  exportBtn.style.display = 'inline-flex';
+  shareBtn.style.display = 'inline-flex';
 }
 
 function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ─── Export .txt ──────────────────────────────────────────────────────────────
-exportBtn.addEventListener('click', () => {
+const shareBtn = document.getElementById('shareBtn');
+
+shareBtn.addEventListener('click', async () => {
   if (sessionLog.length === 0) return;
 
-  const date  = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  const date = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
   const lines = [`Language Builder — ${date}`, ''];
 
   sessionLog.slice().reverse().forEach(({ en, tr, lang }, i) => {
-    lines.push(`${i + 1}. EN: ${en}`);
+    lines.push(`${i + 1}. ${en}`);
     lines.push(`   ${lang.toUpperCase()}: ${tr}`);
     lines.push('');
   });
 
-  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `language-builder-${Date.now()}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const text = lines.join('\n');
 
-  setStatus('Exported! Open the file on your device.', 'success');
+  // iPhone / modern browsers
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'Language Builder',
+        text
+      });
+
+      setStatus('Shared successfully ✔', 'success');
+    } catch (err) {
+      setStatus('Share cancelled.', 'error');
+    }
+  } else {
+    // fallback copy
+    await navigator.clipboard.writeText(text);
+    setStatus('Copied to clipboard ✔', 'success');
+  }
 });
