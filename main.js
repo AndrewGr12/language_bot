@@ -5,6 +5,13 @@ const LANG_NAMES = {
   ru: 'Russian', ar: 'Arabic'
 };
 
+// DeepL uses uppercase language codes
+const DEEPL_LANG = {
+  fr: 'FR', es: 'ES', de: 'DE', it: 'IT',
+  pt: 'PT', ja: 'JA', zh: 'ZH', ko: 'KO',
+  ru: 'RU', ar: 'AR'
+};
+
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 const micBtn        = document.getElementById('micBtn');
 const micLabel      = micBtn.querySelector('.mic-label');
@@ -27,12 +34,16 @@ const logSection    = document.getElementById('logSection');
 const logList       = document.getElementById('logList');
 const exportBtn     = document.getElementById('exportBtn');
 
-// ─── State — session only, wiped on every page reload ────────────────────────
-// (No localStorage — intentional. Refresh = clean slate.)
-let currentLang = targetLangSel.value;
-let sessionLog  = [];   // [{ en, tr, lang }]  lives only in RAM
+const apiKeyInput   = document.getElementById('apiKeyInput');
+const apiSetBtn     = document.getElementById('apiSetBtn');
+const apiDot        = document.getElementById('apiDot');
+const apiNote       = document.getElementById('apiNote');
 
-// Keep lang label in sync
+// ─── State — session only, wiped on every page reload ────────────────────────
+let currentLang = targetLangSel.value;
+let sessionLog  = [];
+let deeplKey    = '';   // never saved to localStorage — clears on tab close
+
 targetLangSel.addEventListener('change', () => {
   currentLang = targetLangSel.value;
 });
@@ -43,8 +54,60 @@ function setStatus(msg, type = '') {
   statusEl.className = 'status' + (type ? ' ' + type : '');
 }
 
-// ─── Translation via MyMemory (free, no key) ─────────────────────────────────
+// ─── DeepL key setup ─────────────────────────────────────────────────────────
+apiSetBtn.addEventListener('click', () => {
+  const val = apiKeyInput.value.trim();
+  if (!val) return;
+
+  deeplKey = val;
+  apiDot.classList.add('connected');
+  apiKeyInput.classList.add('connected');
+  apiSetBtn.textContent = 'Connected ✔';
+  apiSetBtn.classList.add('connected');
+  apiNote.textContent = 'DeepL active — high-quality translations for French & Spanish.';
+  apiKeyInput.blur();
+});
+
+apiKeyInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') apiSetBtn.click();
+});
+
+// ─── Translation ──────────────────────────────────────────────────────────────
+// Uses DeepL if key set, falls back to MyMemory (free, no key)
 async function translate(text, targetLang) {
+
+  // ── DeepL ─────────────────────────────────────────────────────────────────
+  if (deeplKey) {
+    try {
+      const dlLang   = DEEPL_LANG[targetLang] || targetLang.toUpperCase();
+      // Free keys end in :fx and use the free endpoint
+      const endpoint = deeplKey.endsWith(':fx')
+        ? 'https://api-free.deepl.com/v2/translate'
+        : 'https://api.deepl.com/v2/translate';
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `DeepL-Auth-Key ${deeplKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: [text],
+          source_lang: 'EN',
+          target_lang: dlLang
+        })
+      });
+
+      if (!res.ok) throw new Error('DeepL HTTP ' + res.status);
+      const data = await res.json();
+      if (data.translations?.[0]?.text) return data.translations[0].text;
+      throw new Error('DeepL bad response');
+    } catch (err) {
+      console.warn('[Translate] DeepL failed, falling back to MyMemory:', err);
+    }
+  }
+
+  // ── MyMemory fallback ─────────────────────────────────────────────────────
   try {
     const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`;
     const res  = await fetch(url);
@@ -55,19 +118,10 @@ async function translate(text, targetLang) {
     }
     throw new Error('MyMemory bad response');
   } catch (err) {
-    console.warn('[Translate] MyMemory failed, trying Lingva:', err);
+    console.warn('[Translate] MyMemory failed:', err);
   }
 
-  try {
-    const res  = await fetch(`https://lingva.ml/api/v1/en/${targetLang}/${encodeURIComponent(text)}`);
-    if (!res.ok) throw new Error('Lingva HTTP ' + res.status);
-    const data = await res.json();
-    if (data.translation) return data.translation;
-    throw new Error('Lingva bad response');
-  } catch (err) {
-    console.error('[Translate] Both services failed:', err);
-    throw new Error('Translation failed. Check your connection and try again.');
-  }
+  throw new Error('Translation failed. Check your connection and try again.');
 }
 
 // ─── Core pipeline ───────────────────────────────────────────────────────────
@@ -78,14 +132,12 @@ async function processSentence(text) {
   currentLang = targetLangSel.value;
   const langName = LANG_NAMES[currentLang] || currentLang.toUpperCase();
 
-  // Show the confirm card immediately with English text
   enTextEl.value = text;
   trTextEl.value = '';
   trTag.textContent = currentLang.toUpperCase();
   trLangName.textContent = langName;
   confirmCard.classList.add('visible');
 
-  // Show loader, disable save while translating
   transLoader.classList.add('active');
   saveBtn.disabled = true;
   setStatus('Translating…');
@@ -134,30 +186,21 @@ let isListening  = false;
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
   recognition.lang = 'en-US';
-  recognition.interimResults = true;   // show words as you speak
+  recognition.interimResults = true;
   recognition.maxAlternatives = 1;
 
-  // Show interim results live in the textarea
   recognition.onresult = (e) => {
     let interim = '';
     let final   = '';
 
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) {
-        final += t;
-      } else {
-        interim += t;
-      }
+      if (e.results[i].isFinal) final += t;
+      else interim += t;
     }
 
-    // Show what's being heard in real time
     manualInput.value = final || interim;
-
-    // Once we have a final result, run the pipeline
-    if (final) {
-      processSentence(final);
-    }
+    if (final) processSentence(final);
   };
 
   recognition.onerror = (e) => {
@@ -168,11 +211,8 @@ if (SpeechRecognition) {
   recognition.onend = () => stopListening();
 
   micBtn.addEventListener('click', () => {
-    if (isListening) {
-      recognition.stop();
-    } else {
-      startListening();
-    }
+    if (isListening) recognition.stop();
+    else startListening();
   });
 
 } else {
@@ -184,7 +224,7 @@ if (SpeechRecognition) {
 function startListening() {
   if (!recognition) return;
   try {
-    manualInput.value = '';   // clear previous text when starting a new recording
+    manualInput.value = '';
     recognition.start();
     isListening = true;
     micBtn.classList.add('listening');
@@ -205,9 +245,7 @@ function stopListening() {
 }
 
 // ─── Manual process button ───────────────────────────────────────────────────
-processBtn.addEventListener('click', () => {
-  processSentence(manualInput.value);
-});
+processBtn.addEventListener('click', () => processSentence(manualInput.value));
 
 manualInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
@@ -233,11 +271,8 @@ saveBtn.addEventListener('click', () => {
     return;
   }
 
-  // Add to session log (RAM only — wiped on reload)
   addToLog(en, tr, lang);
   setStatus('Saved to this session ✔', 'success');
-
-  // Reset UI
   confirmCard.classList.remove('visible');
   manualInput.value = '';
 });
@@ -255,8 +290,6 @@ function addToLog(en, tr, lang) {
   `;
   logList.prepend(li);
   logSection.classList.add('visible');
-
-  // Show export button as soon as there's something to export
   exportBtn.style.display = 'inline-flex';
 }
 
@@ -264,14 +297,12 @@ function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ─── Export session as .txt (download to device / AirDrop / share) ────────────
-// Format: simple two-column text, easy to paste into Apple Notes, Notion, etc.
+// ─── Export .txt ──────────────────────────────────────────────────────────────
 exportBtn.addEventListener('click', () => {
   if (sessionLog.length === 0) return;
 
-  const langName = LANG_NAMES[sessionLog[0].lang] || sessionLog[0].lang.toUpperCase();
-  const date     = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
-  const lines    = [`Language Builder — ${date}`, ''];
+  const date  = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  const lines = [`Language Builder — ${date}`, ''];
 
   sessionLog.slice().reverse().forEach(({ en, tr, lang }, i) => {
     lines.push(`${i + 1}. EN: ${en}`);

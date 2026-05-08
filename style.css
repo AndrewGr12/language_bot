@@ -353,7 +353,82 @@ textarea::placeholder { color: var(--text-dim); }
   color: var(--text-dim);
 }
 
-/* ─── Export button ─── */
+/* ─── DeepL API card ─── */
+.api-card { display: flex; flex-direction: column; gap: 10px; }
+
+.api-header {
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.api-title-row {
+  display: flex; align-items: center; gap: 8px;
+}
+
+.api-badge {
+  font-size: 10px; font-weight: 500; letter-spacing: 0.06em;
+  padding: 2px 7px; border-radius: 4px;
+  background: rgba(13,180,185,0.15); color: #0db4b9;
+  font-family: var(--mono);
+}
+
+.api-title {
+  font-size: 12px; font-family: var(--mono);
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+
+.api-status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--text-dim);
+  transition: background 0.3s;
+}
+.api-status-dot.connected { background: var(--accent); box-shadow: 0 0 6px rgba(200,240,96,0.5); }
+
+.api-link {
+  font-size: 11px; font-family: var(--mono);
+  color: var(--text-dim); text-decoration: none;
+  transition: color 0.15s;
+}
+.api-link:hover { color: #0db4b9; }
+
+.api-input-row {
+  display: flex; gap: 8px;
+}
+
+.api-input-row input {
+  flex: 1;
+  background: var(--surface2);
+  border: 0.5px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 9px 12px;
+  transition: border-color 0.15s;
+}
+.api-input-row input:focus { outline: none; border-color: #0db4b9; }
+.api-input-row input.connected { border-color: var(--accent); }
+
+.api-set-btn {
+  background: transparent;
+  border: 0.5px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 9px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.api-set-btn:hover { border-color: #0db4b9; color: #0db4b9; }
+.api-set-btn.connected { border-color: var(--accent); color: var(--accent); }
+
+.api-note {
+  font-size: 11px; font-family: var(--mono);
+  color: var(--text-dim);
+}
+
+
 .export-btn {
   display: inline-flex; align-items: center; gap: 5px;
   background: transparent;
