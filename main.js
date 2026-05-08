@@ -32,7 +32,7 @@ const retranslateBtn= document.getElementById('retranslateBtn');
 
 const logSection    = document.getElementById('logSection');
 const logList       = document.getElementById('logList');
-const exportBtn     = document.getElementById('exportBtn');
+const shareBtn = document.getElementById('shareBtn');
 
 const apiKeyInput   = document.getElementById('apiKeyInput');
 const apiSetBtn     = document.getElementById('apiSetBtn');
@@ -298,8 +298,6 @@ function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-const shareBtn = document.getElementById('shareBtn');
-
 shareBtn.addEventListener('click', async () => {
   if (sessionLog.length === 0) return;
 
@@ -319,21 +317,45 @@ shareBtn.addEventListener('click', async () => {
 
   const text = lines.join('\n');
 
-  // iPhone / modern browsers
-  if (navigator.share) {
+  // Create text file
+  const blob = new Blob([text], { type: 'text/plain' });
+
+  const file = new File(
+    [blob],
+    `language-builder-${Date.now()}.txt`,
+    { type: 'text/plain' }
+  );
+
+  // iPhone native share sheet
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({
         title: 'Language Builder',
-        text
+        text: 'My saved phrases',
+        files: [file]
       });
 
       setStatus('Shared successfully ✔', 'success');
+      return;
+
     } catch (err) {
       setStatus('Share cancelled.', 'error');
+      return;
     }
-  } else {
-    // fallback copy
-    await navigator.clipboard.writeText(text);
-    setStatus('Copied to clipboard ✔', 'success');
   }
+
+  // Fallback: download file
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'language-builder.txt';
+
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+
+  setStatus('Downloaded ✔', 'success');
 });
