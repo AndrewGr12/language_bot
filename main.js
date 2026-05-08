@@ -1,149 +1,294 @@
-// =========================
-// STATE (no database needed)
-// =========================
-
-let currentCard = null;
-
-const status = document.getElementById("status");
-const modal = document.getElementById("modal");
-
-const enText = document.getElementById("enText");
-const trText = document.getElementById("trText");
-
-// =========================
-// SPEECH RECOGNITION
-// =========================
-
-const SpeechRecognition =
-  window.SpeechRecognition || window.webkitSpeechRecognition;
-
-const recognition = new SpeechRecognition();
-recognition.lang = "en-US";
-recognition.interimResults = false;
-
-recognition.onresult = async (e) => {
-  const text = e.results[0][0].transcript;
-  await processSentence(text);
+// ─── Language name map ───────────────────────────────────────────────────────
+const LANG_NAMES = {
+  fr: 'French', es: 'Spanish', de: 'German', it: 'Italian',
+  pt: 'Portuguese', ja: 'Japanese', zh: 'Chinese', ko: 'Korean',
+  ru: 'Russian', ar: 'Arabic'
 };
 
-// =========================
-// BUTTONS
-// =========================
+// ─── DOM refs ────────────────────────────────────────────────────────────────
+const micBtn        = document.getElementById('micBtn');
+const micLabel      = micBtn.querySelector('.mic-label');
+const statusEl      = document.getElementById('status');
+const manualInput   = document.getElementById('manualInput');
+const processBtn    = document.getElementById('processBtn');
+const targetLangSel = document.getElementById('targetLang');
 
-document.getElementById("startBtn").onclick = () => {
-  recognition.start();
-  status.innerText = "Listening...";
-};
+const confirmCard   = document.getElementById('confirmCard');
+const enTextEl      = document.getElementById('enText');
+const trTextEl      = document.getElementById('trText');
+const trTag         = document.getElementById('trTag');
+const trLangName    = document.getElementById('trLangName');
+const transLoader   = document.getElementById('transLoader');
+const saveBtn       = document.getElementById('saveBtn');
+const discardBtn    = document.getElementById('discardBtn');
+const retranslateBtn= document.getElementById('retranslateBtn');
 
-document.getElementById("stopBtn").onclick = () => {
-  recognition.stop();
-  status.innerText = "Stopped.";
-};
+const logSection    = document.getElementById('logSection');
+const logList       = document.getElementById('logList');
 
-document.getElementById("processBtn").onclick = async () => {
-  const text = document.getElementById("manualInput").value;
-  if (!text) return;
-  await processSentence(text);
-};
+// ─── State ───────────────────────────────────────────────────────────────────
+let currentLang = targetLangSel.value;
+let sessionLog  = [];
 
-// =========================
-// CORE PIPELINE
-// =========================
+// Keep lang label in sync
+targetLangSel.addEventListener('change', () => {
+  currentLang = targetLangSel.value;
+});
 
+// ─── Status helper ───────────────────────────────────────────────────────────
+function setStatus(msg, type = '') {
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (type ? ' ' + type : '');
+}
+
+// ─── Translation via MyMemory (free, no key, 1000 req/day) ───────────────────
+// Falls back to Lingva Translate (self-hosted Google Translate proxy) if MyMemory fails.
+async function translate(text, targetLang) {
+  // MyMemory: best free tier, no CORS issues, returns quality translations
+  try {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`;
+    const res  = await fetch(url);
+    if (!res.ok) throw new Error('MyMemory HTTP ' + res.status);
+    const data = await res.json();
+    if (data.responseStatus === 200 && data.responseData?.translatedText) {
+      return data.responseData.translatedText;
+    }
+    throw new Error('MyMemory bad response');
+  } catch (err) {
+    console.warn('[Translate] MyMemory failed, trying Lingva:', err);
+  }
+
+  // Fallback: Lingva Translate (open-source Google Translate frontend)
+  try {
+    const res  = await fetch(`https://lingva.ml/api/v1/en/${targetLang}/${encodeURIComponent(text)}`);
+    if (!res.ok) throw new Error('Lingva HTTP ' + res.status);
+    const data = await res.json();
+    if (data.translation) return data.translation;
+    throw new Error('Lingva bad response');
+  } catch (err) {
+    console.error('[Translate] Both services failed:', err);
+    throw new Error('Translation failed. Check your connection and try again.');
+  }
+}
+
+// ─── Core pipeline ───────────────────────────────────────────────────────────
 async function processSentence(text) {
-  status.innerText = "Translating...";
+  text = text.trim();
+  if (!text) return;
 
-  const translated = await translate(text);
+  currentLang = targetLangSel.value;
+  const langName = LANG_NAMES[currentLang] || currentLang.toUpperCase();
 
-  currentCard = {
-    en: text,
-    tr: translated,
-    lang: document.getElementById("targetLang").value
+  // Show the confirm card with just the English text first
+  enTextEl.value = text;
+  trTextEl.value = '';
+  trTag.textContent = currentLang.toUpperCase();
+  trLangName.textContent = langName;
+  confirmCard.classList.add('visible');
+
+  // Show loader, disable save while translating
+  transLoader.classList.add('active');
+  saveBtn.disabled = true;
+  setStatus('Translating…');
+
+  try {
+    const translated = await translate(text, currentLang);
+    trTextEl.value = translated;
+    setStatus('Done. Edit if needed, then add to Anki.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+    trTextEl.value = '';
+    trTextEl.placeholder = 'Translation failed — type it manually';
+  } finally {
+    transLoader.classList.remove('active');
+    saveBtn.disabled = false;
+  }
+}
+
+// ─── Re-translate button (re-runs translation from current English text) ─────
+retranslateBtn.addEventListener('click', async () => {
+  const text = enTextEl.value.trim();
+  if (!text) return;
+
+  trTextEl.value = '';
+  transLoader.classList.add('active');
+  saveBtn.disabled = true;
+  setStatus('Re-translating…');
+
+  try {
+    const translated = await translate(text, currentLang);
+    trTextEl.value = translated;
+    setStatus('Re-translated.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  } finally {
+    transLoader.classList.remove('active');
+    saveBtn.disabled = false;
+  }
+});
+
+// ─── Speech recognition ──────────────────────────────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let isListening  = false;
+
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    manualInput.value = transcript;
+    processSentence(transcript);
   };
 
-  showModal(currentCard);
-}
+  recognition.onerror = (e) => {
+    setStatus('Mic error: ' + e.error, 'error');
+    stopListening();
+  };
 
-// =========================
-// TRANSLATION
-// =========================
+  recognition.onend = () => stopListening();
 
-async function translate(text) {
-  const lang = document.getElementById("targetLang").value;
-
-  const res = await fetch("https://libretranslate.de/translate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      q: text,
-      source: "en",
-      target: lang,
-      format: "text"
-    })
+  micBtn.addEventListener('click', () => {
+    if (isListening) {
+      recognition.stop();
+    } else {
+      startListening();
+    }
   });
 
-  const data = await res.json();
-  return data.translatedText;
+} else {
+  micBtn.disabled = true;
+  micLabel.textContent = 'Mic not supported';
+  setStatus('Use the text input instead.', 'error');
 }
 
-// =========================
-// MODAL CONTROL
-// =========================
-
-function showModal(card) {
-  enText.innerText = card.en;
-  trText.innerText = card.tr;
-  modal.style.display = "flex";
+function startListening() {
+  if (!recognition) return;
+  try {
+    recognition.start();
+    isListening = true;
+    micBtn.classList.add('listening');
+    micLabel.textContent = 'Tap to stop';
+    setStatus('Listening…');
+  } catch (e) {
+    setStatus('Could not start mic.', 'error');
+  }
 }
 
-document.getElementById("discardBtn").onclick = () => {
-  modal.style.display = "none";
-  currentCard = null;
-};
+function stopListening() {
+  isListening = false;
+  micBtn.classList.remove('listening');
+  micLabel.textContent = 'Hold to speak';
+  if (!statusEl.classList.contains('error')) {
+    setStatus('Ready.');
+  }
+}
 
-// =========================
-// ANKI CONNECT (NO EXPORT NEEDED)
-// =========================
+// ─── Manual process button ───────────────────────────────────────────────────
+processBtn.addEventListener('click', () => {
+  processSentence(manualInput.value);
+});
 
-async function sendToAnki(card) {
+manualInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    processSentence(manualInput.value);
+  }
+});
+
+// ─── Discard ─────────────────────────────────────────────────────────────────
+discardBtn.addEventListener('click', () => {
+  confirmCard.classList.remove('visible');
+  setStatus('Discarded.');
+});
+
+// ─── AnkiConnect ─────────────────────────────────────────────────────────────
+async function sendToAnki(enPhrase, trPhrase, lang) {
   const payload = {
-    action: "addNote",
+    action: 'addNote',
     version: 6,
     params: {
       note: {
-        deckName: "Language Builder",
-        modelName: "Basic",
+        deckName:  'Language Builder',
+        modelName: 'Basic',
         fields: {
-          Front: card.en,
-          Back: card.tr
+          Front: enPhrase,
+          Back:  trPhrase
         },
-        tags: ["language-builder", card.lang]
+        options: {
+          allowDuplicate: false,
+          duplicateScope: 'deck'
+        },
+        tags: ['language-builder', lang]
       }
     }
   };
 
-  const res = await fetch("http://localhost:8765", {
-    method: "POST",
+  const res = await fetch('http://localhost:8765', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
 
-  return await res.json();
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.result;
 }
 
-// =========================
-// SAVE TO ANKI
-// =========================
+// ─── Save to Anki ─────────────────────────────────────────────────────────────
+saveBtn.addEventListener('click', async () => {
+  const en   = enTextEl.value.trim();
+  const tr   = trTextEl.value.trim();
+  const lang = currentLang;
 
-document.getElementById("saveBtn").onclick = async () => {
-  status.innerText = "Sending to Anki...";
-
-  try {
-    await sendToAnki(currentCard);
-    status.innerText = "Saved to Anki ✔";
-  } catch (e) {
-    status.innerText = "Error: Is Anki open + AnkiConnect installed?";
+  if (!en || !tr) {
+    setStatus('Both fields must be filled in.', 'error');
+    return;
   }
 
-  modal.style.display = "none";
-  currentCard = null;
-};
+  saveBtn.disabled = true;
+  setStatus('Sending to Anki…');
+
+  try {
+    await sendToAnki(en, tr, lang);
+    setStatus('Saved to Anki ✔', 'success');
+
+    // Add to session log
+    addToLog(en, tr, lang);
+
+    // Reset UI
+    confirmCard.classList.remove('visible');
+    manualInput.value = '';
+
+  } catch (err) {
+    // Common error: AnkiConnect not running
+    const msg = err.message.includes('Failed to fetch')
+      ? 'Cannot reach Anki. Is it open with AnkiConnect installed?'
+      : 'Anki error: ' + err.message;
+    setStatus(msg, 'error');
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+// ─── Session log ─────────────────────────────────────────────────────────────
+function addToLog(en, tr, lang) {
+  sessionLog.unshift({ en, tr, lang });
+
+  const li = document.createElement('li');
+  li.className = 'log-item';
+  li.innerHTML = `
+    <span class="log-en">${escapeHtml(en)}</span>
+    <span class="log-sep">${lang.toUpperCase()} →</span>
+    <span class="log-tr">${escapeHtml(tr)}</span>
+  `;
+  logList.prepend(li);
+  logSection.classList.add('visible');
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}

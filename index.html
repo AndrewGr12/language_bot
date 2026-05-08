@@ -3,56 +3,148 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Language Builder v2</title>
+  <title>Language Builder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css"/>
 </head>
-
 <body>
-  <div class="container">
 
-    <h1>Language Builder 🧠</h1>
+  <div class="noise"></div>
 
-    <!-- TARGET LANGUAGE -->
-    <div class="row">
-      <select id="targetLang">
-        <option value="fr">French</option>
-        <option value="es">Spanish</option>
-      </select>
-    </div>
+  <main class="container">
 
-    <!-- SPEECH CONTROLS -->
-    <div class="row">
-      <button id="startBtn">🎤 Speak</button>
-      <button id="stopBtn">⏹ Stop</button>
-    </div>
+    <header>
+      <div class="logo-mark">LB</div>
+      <div class="header-text">
+        <h1>Language Builder</h1>
+        <p class="tagline">speak → translate → memorize</p>
+      </div>
+    </header>
 
-    <p id="status">Ready.</p>
+    <!-- CONTROLS -->
+    <section class="card controls-card">
 
-    <!-- MANUAL INPUT -->
-    <textarea id="manualInput" placeholder="Or type a sentence..."></textarea>
-    <button id="processBtn">⚙️ Process Sentence</button>
-
-  </div>
-
-  <!-- CONFIRMATION MODAL -->
-  <div id="modal" class="modal">
-    <div class="modal-content">
-
-      <h2>Confirm Anki Card</h2>
-
-      <p><b>English:</b></p>
-      <p id="enText"></p>
-
-      <p><b>Translation:</b></p>
-      <p id="trText"></p>
-
-      <div class="row">
-        <button id="saveBtn">✔ Add to Anki</button>
-        <button id="discardBtn">❌ Discard</button>
+      <div class="field-row">
+        <label for="targetLang">Target language</label>
+        <select id="targetLang">
+          <option value="fr">French</option>
+          <option value="es">Spanish</option>
+          <option value="de">German</option>
+          <option value="it">Italian</option>
+          <option value="pt">Portuguese</option>
+          <option value="ja">Japanese</option>
+          <option value="zh">Chinese (Simplified)</option>
+          <option value="ko">Korean</option>
+          <option value="ru">Russian</option>
+          <option value="ar">Arabic</option>
+        </select>
       </div>
 
-    </div>
-  </div>
+      <div class="mic-area">
+        <button id="micBtn" class="mic-btn" aria-label="Start recording">
+          <span class="mic-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="22"/>
+              <line x1="8" y1="22" x2="16" y2="22"/>
+            </svg>
+          </span>
+          <span class="mic-label">Hold to speak</span>
+          <span class="mic-rings">
+            <span class="ring ring-1"></span>
+            <span class="ring ring-2"></span>
+            <span class="ring ring-3"></span>
+          </span>
+        </button>
+        <p id="status" class="status">Ready.</p>
+      </div>
+
+      <div class="divider"><span>or type it</span></div>
+
+      <div class="type-area">
+        <textarea id="manualInput" placeholder="I woke up today..."></textarea>
+        <button id="processBtn" class="process-btn">
+          Process
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+            <polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </button>
+      </div>
+
+    </section>
+
+    <!-- CONFIRMATION PANEL (hidden until triggered) -->
+    <section class="card confirm-card" id="confirmCard" aria-live="polite">
+      <div class="confirm-header">
+        <span class="confirm-badge">Review card</span>
+        <button id="discardBtn" class="discard-btn" aria-label="Discard">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="lang-pair">
+
+        <div class="lang-block">
+          <div class="lang-label">
+            <span class="lang-tag en-tag">EN</span> English
+            <span class="editable-hint">editable</span>
+          </div>
+          <textarea id="enText" class="lang-text" rows="2" spellcheck="false"></textarea>
+        </div>
+
+        <div class="arrow-divider">
+          <div class="arrow-line"></div>
+          <svg class="arrow-head" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+            <polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </div>
+
+        <div class="lang-block">
+          <div class="lang-label">
+            <span class="lang-tag tr-tag" id="trTag">FR</span>
+            <span id="trLangName">French</span>
+            <button id="retranslateBtn" class="retranslate-btn" title="Re-translate from English">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 .49-3.55"/>
+              </svg>
+              re-translate
+            </button>
+          </div>
+          <div class="lang-text-wrap">
+            <textarea id="trText" class="lang-text" rows="2" spellcheck="false"></textarea>
+            <div class="trans-loader" id="transLoader">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="confirm-footer">
+        <div class="anki-hint">Saves to deck: <code>Language Builder</code></div>
+        <button id="saveBtn" class="save-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Add to Anki
+        </button>
+      </div>
+    </section>
+
+    <!-- RECENT CARDS LOG -->
+    <section class="log-section" id="logSection">
+      <h2 class="log-title">This session</h2>
+      <ul class="log-list" id="logList"></ul>
+    </section>
+
+  </main>
 
   <script src="main.js"></script>
 </body>
