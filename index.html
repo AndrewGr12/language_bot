@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Language Builder</title>
+  <title>Language Builder v2</title>
   <link rel="stylesheet" href="style.css"/>
 </head>
 
 <body>
   <div class="container">
 
-    <h1>Language Builder</h1>
+    <h1>Language Builder 🧠</h1>
 
-    <!-- LANGUAGE SELECT -->
+    <!-- TARGET LANGUAGE -->
     <div class="row">
       <select id="targetLang">
         <option value="fr">French</option>
@@ -20,24 +20,38 @@
       </select>
     </div>
 
-    <!-- VOICE INPUT -->
+    <!-- SPEECH CONTROLS -->
     <div class="row">
-      <button id="startBtn">🎤 Start Speaking</button>
+      <button id="startBtn">🎤 Speak</button>
       <button id="stopBtn">⏹ Stop</button>
     </div>
 
-    <p id="status">Press mic and speak...</p>
+    <p id="status">Ready.</p>
 
     <!-- MANUAL INPUT -->
     <textarea id="manualInput" placeholder="Or type a sentence..."></textarea>
-    <button id="addManual">Add Sentence</button>
+    <button id="processBtn">⚙️ Process Sentence</button>
 
-    <hr/>
+  </div>
 
-    <!-- SENTENCE LIST -->
-    <h2>Your Sentences</h2>
-    <div id="list"></div>
+  <!-- CONFIRMATION MODAL -->
+  <div id="modal" class="modal">
+    <div class="modal-content">
 
+      <h2>Confirm Anki Card</h2>
+
+      <p><b>English:</b></p>
+      <p id="enText"></p>
+
+      <p><b>Translation:</b></p>
+      <p id="trText"></p>
+
+      <div class="row">
+        <button id="saveBtn">✔ Add to Anki</button>
+        <button id="discardBtn">❌ Discard</button>
+      </div>
+
+    </div>
   </div>
 
   <script src="main.js"></script>

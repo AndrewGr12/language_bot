@@ -1,25 +1,34 @@
 // =========================
-// STORAGE
+// STATE (no database needed)
 // =========================
 
-let sentences = JSON.parse(localStorage.getItem("sentences") || "[]");
+let currentCard = null;
 
-function save() {
-  localStorage.setItem("sentences", JSON.stringify(sentences));
-  render();
-}
+const status = document.getElementById("status");
+const modal = document.getElementById("modal");
+
+const enText = document.getElementById("enText");
+const trText = document.getElementById("trText");
 
 // =========================
 // SPEECH RECOGNITION
 // =========================
 
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-const recognition = new SpeechRecognition();
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
 
+const recognition = new SpeechRecognition();
 recognition.lang = "en-US";
 recognition.interimResults = false;
 
-const status = document.getElementById("status");
+recognition.onresult = async (e) => {
+  const text = e.results[0][0].transcript;
+  await processSentence(text);
+};
+
+// =========================
+// BUTTONS
+// =========================
 
 document.getElementById("startBtn").onclick = () => {
   recognition.start();
@@ -31,116 +40,110 @@ document.getElementById("stopBtn").onclick = () => {
   status.innerText = "Stopped.";
 };
 
-recognition.onresult = async (event) => {
-  const text = event.results[0][0].transcript;
-  status.innerText = "Heard: " + text;
-
-  const translated = await translate(text);
-
-  addSentence(text, translated);
-};
-
-// =========================
-// MANUAL INPUT
-// =========================
-
-document.getElementById("addManual").onclick = async () => {
+document.getElementById("processBtn").onclick = async () => {
   const text = document.getElementById("manualInput").value;
   if (!text) return;
-
-  const translated = await translate(text);
-
-  addSentence(text, translated);
-
-  document.getElementById("manualInput").value = "";
+  await processSentence(text);
 };
 
 // =========================
-// TRANSLATION (PLUG-IN READY)
+// CORE PIPELINE
+// =========================
+
+async function processSentence(text) {
+  status.innerText = "Translating...";
+
+  const translated = await translate(text);
+
+  currentCard = {
+    en: text,
+    tr: translated,
+    lang: document.getElementById("targetLang").value
+  };
+
+  showModal(currentCard);
+}
+
+// =========================
+// TRANSLATION
 // =========================
 
 async function translate(text) {
   const lang = document.getElementById("targetLang").value;
 
+  const res = await fetch("https://libretranslate.de/translate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      q: text,
+      source: "en",
+      target: lang,
+      format: "text"
+    })
+  });
+
+  const data = await res.json();
+  return data.translatedText;
+}
+
+// =========================
+// MODAL CONTROL
+// =========================
+
+function showModal(card) {
+  enText.innerText = card.en;
+  trText.innerText = card.tr;
+  modal.style.display = "flex";
+}
+
+document.getElementById("discardBtn").onclick = () => {
+  modal.style.display = "none";
+  currentCard = null;
+};
+
+// =========================
+// ANKI CONNECT (NO EXPORT NEEDED)
+// =========================
+
+async function sendToAnki(card) {
+  const payload = {
+    action: "addNote",
+    version: 6,
+    params: {
+      note: {
+        deckName: "Language Builder",
+        modelName: "Basic",
+        fields: {
+          Front: card.en,
+          Back: card.tr
+        },
+        tags: ["language-builder", card.lang]
+      }
+    }
+  };
+
+  const res = await fetch("http://localhost:8765", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+
+  return await res.json();
+}
+
+// =========================
+// SAVE TO ANKI
+// =========================
+
+document.getElementById("saveBtn").onclick = async () => {
+  status.innerText = "Sending to Anki...";
+
   try {
-    // Free API (can be swapped later)
-    const res = await fetch("https://libretranslate.de/translate", {
-      method: "POST",
-      body: JSON.stringify({
-        q: text,
-        source: "en",
-        target: lang,
-        format: "text"
-      }),
-      headers: { "Content-Type": "application/json" }
-    });
-
-    const data = await res.json();
-    return data.translatedText || "[translation error]";
+    await sendToAnki(currentCard);
+    status.innerText = "Saved to Anki ✔";
   } catch (e) {
-    return "[translation failed]";
+    status.innerText = "Error: Is Anki open + AnkiConnect installed?";
   }
-}
 
-// =========================
-// ADD SENTENCE
-// =========================
-
-function addSentence(en, translated) {
-  sentences.push({
-    en,
-    translated,
-    time: Date.now()
-  });
-
-  save();
-}
-
-// =========================
-// TEXT TO SPEECH
-// =========================
-
-function speak(text) {
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "en-US";
-  speechSynthesis.speak(utter);
-}
-
-function speakForeign(text) {
-  const lang = document.getElementById("targetLang").value;
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = lang;
-  speechSynthesis.speak(utter);
-}
-
-// =========================
-// RENDER LIST
-// =========================
-
-function render() {
-  const list = document.getElementById("list");
-  list.innerHTML = "";
-
-  sentences.slice().reverse().forEach((s, i) => {
-    const div = document.createElement("div");
-    div.className = "card";
-
-    div.innerHTML = `
-      <div><b>EN:</b> ${s.en}</div>
-      <div class="small"><b>TRANSLATED:</b> ${s.translated}</div>
-
-      <div class="actions">
-        <button onclick="speak('${escapeQuotes(s.en)}')">🔊 English</button>
-        <button onclick="speakForeign('${escapeQuotes(s.translated)}')">🌍 Target</button>
-      </div>
-    `;
-
-    list.appendChild(div);
-  });
-}
-
-function escapeQuotes(str) {
-  return str.replace(/'/g, "\\'");
-}
-
-render();
+  modal.style.display = "none";
+  currentCard = null;
+};
